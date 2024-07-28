@@ -26,7 +26,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        poetry run pytest --cov=your_package_name tests/ # Replace `your_package_name` with the name of your package
+        poetry run pytest --cov=documentdb tests/ --cov-report=xml
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v3
