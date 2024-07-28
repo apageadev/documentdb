@@ -1,5 +1,7 @@
 # DocumentDB
 
+[![codecov](https://codecov.io/github/apageadev/documentdb/graph/badge.svg?token=WNTC7Q8PRP)](https://codecov.io/github/apageadev/documentdb)
+
 DocumentDB is a JSON document-oriented database built on top of SQLite. It offers a simple and efficient way to store, retrieve, and manage JSON documents using the robust and widely-used SQLite as its storage backend. DocumentDB provides a flexible and schema-less data model, allowing for easy integration and usage in various applications.
 
 ## Features
