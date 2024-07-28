@@ -1,0 +1,41 @@
+name: Code Coverage
+
+on: [push, pull_request]
+
+jobs:
+  code-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10' # Adjust the Python version as needed
+
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+        export PATH="$HOME/.local/bin:$PATH"
+
+    - name: Install dependencies
+      run: |
+        poetry install
+
+    - name: Run tests with coverage
+      run: |
+        poetry run pytest --cov=your_package_name tests/ # Replace `your_package_name` with the name of your package
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage.xml # Adjust if your coverage report filename is different
+
+    - name: Publish coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }} # Set CODECOV_TOKEN in your repository secrets
+        files: coverage.xml
