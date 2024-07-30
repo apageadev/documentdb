@@ -181,9 +181,7 @@ class Collection:
         otherwise it will update the existing record
         """
         conn = await self.conn()
-        query = (
-            f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
-        )
+        query = f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         datastr = dumps(data)
         values = {"pk": pk, "data": datastr}
         await conn.db.execute(query, values)
@@ -194,9 +192,7 @@ class Collection:
         otherwise it will update the existing records
         """
         conn = await self.conn()
-        query = (
-            f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
-        )
+        query = f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         values = [{"pk": pk, "data": dumps(data)} for pk, data in data]
         await conn.db.execute_many(query, values)
 
@@ -245,7 +241,9 @@ class Collection:
         Updates an existing record in the collection.
         """
         conn = await self.conn()
-        query = f"UPDATE `{COLLECTION_PREFIX}{self.name}` SET data = :data WHERE pk = :pk;"
+        query = (
+            f"UPDATE `{COLLECTION_PREFIX}{self.name}` SET data = :data WHERE pk = :pk;"
+        )
         datastr = dumps(data)
         values = {"pk": pk, "data": datastr}
 
@@ -259,7 +257,9 @@ class Collection:
         updates multiple existing records in the collection
         """
         conn = await self.conn()
-        query = f"UPDATE `{COLLECTION_PREFIX}{self.name}` SET data = :data WHERE pk = :pk;"
+        query = (
+            f"UPDATE `{COLLECTION_PREFIX}{self.name}` SET data = :data WHERE pk = :pk;"
+        )
         values = [{"pk": pk, "data": dumps(data)} for pk, data in data]
         await conn.db.execute_many(query, values)
 
@@ -481,7 +481,9 @@ class Store:
         removes a collection from the apagea store, and all data within it.
         """
         conn = await self.conn()
-        drop_collection_query = f"DROP TABLE IF EXISTS `{COLLECTION_PREFIX}{collection_name}`;"
+        drop_collection_query = (
+            f"DROP TABLE IF EXISTS `{COLLECTION_PREFIX}{collection_name}`;"
+        )
         await conn.db.execute(drop_collection_query)
 
     async def list_collections(self) -> typing.List[Collection]:
