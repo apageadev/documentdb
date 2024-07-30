@@ -152,7 +152,7 @@ class Collection:
         returns the number of records in the collection
         """
         conn = await self.conn()
-        query = f"SELECT COUNT(*) as num_records FROM `col_{self.name}`;"
+        query = f"SELECT COUNT(*) as num_records FROM `{COLLECTION_PREFIX}{self.name}`;"
         count = await conn.db.fetch_one(query)
         return count["num_records"]
 
@@ -161,7 +161,7 @@ class Collection:
         creates a new record in the collection
         """
         conn = await self.conn()
-        query = f"INSERT INTO `col_{self.name}` (pk, data) VALUES (:pk, :data);"
+        query = f"INSERT INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         datastr = dumps(data)
         values = {"pk": pk, "data": datastr}
         await conn.db.execute(query, values)
@@ -171,7 +171,7 @@ class Collection:
         creates multiple records in the collection
         """
         conn = await self.conn()
-        query = f"INSERT INTO `col_{self.name}` (pk, data) VALUES (:pk, :data);"
+        query = f"INSERT INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         values = [{"pk": pk, "data": dumps(data)} for pk, data in data]
         await conn.db.execute_many(query, values)
 
@@ -182,7 +182,7 @@ class Collection:
         """
         conn = await self.conn()
         query = (
-            f"INSERT OR REPLACE INTO `col_{self.name}` (pk, data) VALUES (:pk, :data);"
+            f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         )
         datastr = dumps(data)
         values = {"pk": pk, "data": datastr}
@@ -195,7 +195,7 @@ class Collection:
         """
         conn = await self.conn()
         query = (
-            f"INSERT OR REPLACE INTO `col_{self.name}` (pk, data) VALUES (:pk, :data);"
+            f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         )
         values = [{"pk": pk, "data": dumps(data)} for pk, data in data]
         await conn.db.execute_many(query, values)
@@ -211,7 +211,7 @@ class Collection:
         retrieves a record from the collection by primary key
         """
         conn = await self.conn()
-        query = f"SELECT * FROM `col_{self.name}` WHERE pk = :pk;"
+        query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE pk = :pk;"
         values = {"pk": pk}
         record = await conn.db.fetch_one(query, values)
         if record is None:
@@ -228,7 +228,7 @@ class Collection:
         """
         conn = await self.conn()
         placeholders = ", ".join([f":pk{i}" for i in range(len(pks))])
-        query = f"SELECT * FROM `col_{self.name}` WHERE pk IN ({placeholders});"
+        query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE pk IN ({placeholders});"
         values = {f"pk{i}": pk for i, pk in enumerate(pks)}
 
         try:
@@ -245,7 +245,7 @@ class Collection:
         Updates an existing record in the collection.
         """
         conn = await self.conn()
-        query = f"UPDATE `col_{self.name}` SET data = :data WHERE pk = :pk;"
+        query = f"UPDATE `{COLLECTION_PREFIX}{self.name}` SET data = :data WHERE pk = :pk;"
         datastr = dumps(data)
         values = {"pk": pk, "data": datastr}
 
@@ -259,7 +259,7 @@ class Collection:
         updates multiple existing records in the collection
         """
         conn = await self.conn()
-        query = f"UPDATE `col_{self.name}` SET data = :data WHERE pk = :pk;"
+        query = f"UPDATE `{COLLECTION_PREFIX}{self.name}` SET data = :data WHERE pk = :pk;"
         values = [{"pk": pk, "data": dumps(data)} for pk, data in data]
         await conn.db.execute_many(query, values)
 
@@ -268,7 +268,7 @@ class Collection:
         deletes a record from the collection by primary key
         """
         conn = await self.conn()
-        query = f"DELETE FROM `col_{self.name}` WHERE pk = :pk;"
+        query = f"DELETE FROM `{COLLECTION_PREFIX}{self.name}` WHERE pk = :pk;"
         values = {"pk": pk}
         await conn.db.execute(query, values)
 
@@ -278,7 +278,7 @@ class Collection:
         """
         conn = await self.conn()
         placeholders = ", ".join([f":pk{i}" for i in range(len(pks))])
-        query = f"DELETE FROM `col_{self.name}` WHERE pk IN ({placeholders});"
+        query = f"DELETE FROM `{COLLECTION_PREFIX}{self.name}` WHERE pk IN ({placeholders});"
         values = {f"pk{i}": pk for i, pk in enumerate(pks)}
 
         try:
@@ -294,7 +294,7 @@ class Collection:
         The pk is included in the dictionary as `_pk`.
         """
         conn = await self.conn()
-        query = f"SELECT * FROM `col_{self.name}` LIMIT :limit OFFSET :offset;"
+        query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` LIMIT :limit OFFSET :offset;"
         values = {"limit": limit, "offset": offset}
         records = await conn.db.fetch_all(query, values)
         if not include_pk:
@@ -309,7 +309,7 @@ class Collection:
         """
         conn = await self.conn()
         query_str = parse_query(query)
-        sql_query = f"SELECT * FROM `col_{self.name}` WHERE {query_str} LIMIT {limit};"
+        sql_query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE {query_str} LIMIT {limit};"
 
         try:
             records = await conn.db.fetch_all(sql_query)
@@ -467,7 +467,7 @@ class Store:
             )
 
         create_collection_query = f"""
-        CREATE TABLE IF NOT EXISTS `col_{collection_name}` (
+        CREATE TABLE IF NOT EXISTS `{COLLECTION_PREFIX}{collection_name}` (
         `pk` TEXT PRIMARY KEY NOT NULL,
         `data` TEXT CHECK (json_valid(`data`)),
         `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -481,7 +481,7 @@ class Store:
         removes a collection from the apagea store, and all data within it.
         """
         conn = await self.conn()
-        drop_collection_query = f"DROP TABLE IF EXISTS `col_{collection_name}`;"
+        drop_collection_query = f"DROP TABLE IF EXISTS `{COLLECTION_PREFIX}{collection_name}`;"
         await conn.db.execute(drop_collection_query)
 
     async def list_collections(self) -> typing.List[Collection]:
@@ -501,7 +501,7 @@ class Store:
         """
         conn = await self.conn()
         await conn.db.execute(
-            f"ALTER TABLE `col_{old_name}` RENAME TO `col_{new_name}`;"
+            f"ALTER TABLE `{COLLECTION_PREFIX}{old_name}` RENAME TO `{COLLECTION_PREFIX}{new_name}`;"
         )
 
     async def get_collection(
@@ -511,7 +511,7 @@ class Store:
         retrieves a collection by name
         """
         _tables = await self.__list_tables_in_db()
-        if f"col_{collection_name}" not in _tables:
+        if f"{COLLECTION_PREFIX}{collection_name}" not in _tables:
             if auto_create:
                 return await self.create_collection(collection_name)
             raise CollectionNotFound(
@@ -538,7 +538,7 @@ class Store:
         view_query = f"""
         CREATE VIEW IF NOT EXISTS {view_name} AS
         SELECT pk, {select_fields}
-        FROM `col_{collection_name}`
+        FROM `{COLLECTION_PREFIX}{collection_name}`
         """
         if query is not None:
             condition_str = parse_query(query)
