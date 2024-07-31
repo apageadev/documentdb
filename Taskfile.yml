@@ -4,4 +4,8 @@ tasks:
 
   test:
     cmds:
-      - poetry run pytest --cov=documentdb tests/ --cov-report=term
+      - poetry run pytest -sv --cov=documentdb tests/ --cov-report=term
+  
+  test-coverage:
+    cmds:
+      - poetry run pytest --cov=documentdb tests/ --cov-report=html
