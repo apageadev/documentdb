@@ -63,64 +63,97 @@ class RecordNotFound(Exception):
     pass
 
 
-def build_condition(key: str, value: typing.Any) -> str:
+class InvalidOperator(Exception):
+    """
+    raised when an invalid operator is used in a query
+    """
+
+    pass
+
+
+def build_condition(
+    key: str, value: typing.Any
+) -> typing.Tuple[str, typing.Dict[str, typing.Any]]:
     """
     Helper function to build SQL condition based on the query value.
     """
+
+    def format_condition(
+        json_key: str, operator: str, val: typing.Any
+    ) -> typing.Tuple[str, typing.Any]:
+        param_key = f"{key}_{operator}"
+        if operator == "eq":
+            return f"{json_key} = :{param_key}", {param_key: val}
+        elif operator == "gt":
+            return f"{json_key} > :{param_key}", {param_key: val}
+        elif operator == "gte":
+            return f"{json_key} >= :{param_key}", {param_key: val}
+        elif operator == "lt":
+            return f"{json_key} < :{param_key}", {param_key: val}
+        elif operator == "lte":
+            return f"{json_key} <= :{param_key}", {param_key: val}
+        elif operator == "sw":
+            return f"{json_key} LIKE :{param_key}", {param_key: f"{val}%"}
+        elif operator == "ew":
+            return f"{json_key} LIKE :{param_key}", {param_key: f"%{val}"}
+        elif operator == "contains":
+            return f"{json_key} LIKE :{param_key}", {param_key: f"%{val}%"}
+        elif operator == "in":
+            placeholders = ", ".join([f":{param_key}_{i}" for i, _ in enumerate(val)])
+            params = {f"{param_key}_{i}": v for i, v in enumerate(val)}
+            return f"{json_key} IN ({placeholders})", params
+        elif operator == "swci":
+            return f"LOWER({json_key}) LIKE LOWER(:{param_key})", {param_key: f"{val}%"}
+        elif operator == "ewci":
+            return f"LOWER({json_key}) LIKE LOWER(:{param_key})", {param_key: f"%{val}"}
+        else:
+            raise InvalidOperator(f"invalid operator: {operator}")
+
     if isinstance(value, dict):
         conditions = []
+        parameters = {}
         for op, val in value.items():
             json_key = f"json_extract(data, '$.{key}')"
-            if op == "gt":
-                conditions.append(f"{json_key} > {val}")
-            elif op == "gte":
-                conditions.append(f"{json_key} >= {val}")
-            elif op == "lt":
-                conditions.append(f"{json_key} < {val}")
-            elif op == "lte":
-                conditions.append(f"{json_key} <= {val}")
-            elif op == "eq":
-                conditions.append(f"{json_key} = '{val}'")
-            elif op == "sw":
-                conditions.append(f"{json_key} LIKE '{val}%'")
-            elif op == "ew":
-                conditions.append(f"{json_key} LIKE '%{val}'")
-            elif op == "contains":
-                conditions.append(f"{json_key} LIKE '%{val}%'")
-            elif op == "in":
-                conditions.append(f"{json_key} IN ({', '.join(map(str, val))})")
-            elif op == "between":
-                conditions.append(f"{json_key} BETWEEN {val[0]} AND {val[1]}")
-            else:
-                raise ValueError(f"Unsupported operator: {op}")
-        return " AND ".join(conditions)
+            condition, param = format_condition(json_key, op, val)
+            conditions.append(condition)
+            parameters.update(param)
+        return " AND ".join(conditions), parameters
     else:
         json_key = f"json_extract(data, '$.{key}')"
-        return f"{json_key} = '{value}'"
+        condition, param = format_condition(json_key, "eq", value)
+        return condition, param
 
 
-def parse_query(query: dict) -> str:
+def parse_query(query: dict) -> typing.Tuple[str, typing.Dict[str, typing.Any]]:
     """
     Helper function to parse the query dict into SQL conditions.
     """
+    conditions = []
+    parameters = {}
+
     if "AND" in query or "OR" in query:
-        conditions = []
         if "AND" in query:
+            sub_conditions = []
             for subquery in query["AND"]:
-                condition = parse_query(subquery)
-                conditions.append(f"({condition})")
-            return " AND ".join(conditions)
+                sub_condition, sub_params = parse_query(subquery)
+                sub_conditions.append(f"({sub_condition})")
+                parameters.update(sub_params)
+            condition = " AND ".join(sub_conditions)
         elif "OR" in query:
+            sub_conditions = []
             for subquery in query["OR"]:
-                condition = parse_query(subquery)
-                conditions.append(f"({condition})")
-            return " OR ".join(conditions)
+                sub_condition, sub_params = parse_query(subquery)
+                sub_conditions.append(f"({sub_condition})")
+                parameters.update(sub_params)
+            condition = " OR ".join(sub_conditions)
     else:
-        conditions = []
         for key, value in query.items():
-            condition = build_condition(key, value)
+            condition, params = build_condition(key, value)
             conditions.append(condition)
-        return " AND ".join(conditions)
+            parameters.update(params)
+        condition = " AND ".join(conditions)
+
+    return condition, parameters
 
 
 class Collection:
@@ -140,12 +173,6 @@ class Collection:
         await self.db.execute("PRAGMA foreign_keys=ON;")
         await self.db.execute("PRAGMA busy_timeout=5000;")
         return self
-
-    async def validate(self):
-        """
-        validate the collection
-        """
-        pass
 
     async def count(self) -> int:
         """
@@ -195,12 +222,6 @@ class Collection:
         query = f"INSERT OR REPLACE INTO `{COLLECTION_PREFIX}{self.name}` (pk, data) VALUES (:pk, :data);"
         values = [{"pk": pk, "data": dumps(data)} for pk, data in data]
         await conn.db.execute_many(query, values)
-
-    async def inspect(self, pk: str) -> dict:
-        """
-        retrieves metadata about a record in the collection by primary key
-        """
-        pass
 
     async def get(self, pk: str, include_pk: bool = False) -> dict:
         """
@@ -308,11 +329,11 @@ class Collection:
         Finds records in the collection that match the query.
         """
         conn = await self.conn()
-        query_str = parse_query(query)
-        sql_query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE {query_str} LIMIT {limit};"
-
+        condition, params = parse_query(query)
+        sql_query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE {condition} LIMIT :limit;"
+        params["limit"] = limit
         try:
-            records = await conn.db.fetch_all(sql_query)
+            records = await conn.db.fetch_all(query=sql_query, values=params)
             if not include_pk:
                 return [loads(record["data"]) for record in records]
             return [{"pk": record["pk"], **loads(record["data"])} for record in records]
