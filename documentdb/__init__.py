@@ -341,96 +341,96 @@ class Collection:
             raise RuntimeError(f"Failed to find records: {e}")
 
 
-class View:
-    """
-    A view within the apagea store.
-    """
+# class View:
+#     """
+#     A view within the apagea store.
+#     """
 
-    def __init__(self, name: str, db: str):
-        self.name = name
-        self.db = Database(f"sqlite+aiosqlite:///{db}.db")
+#     def __init__(self, name: str, db: str):
+#         self.name = name
+#         self.db = Database(f"sqlite+aiosqlite:///{db}.db")
 
-    async def conn(self):
-        if not self.db.is_connected:
-            await self.db.connect()
-            await self.db.execute("PRAGMA journal_mode=WAL;")
-            await self.db.execute("PRAGMA synchronous=NORMAL;")
-            await self.db.execute("PRAGMA cache_size=10000;")
-            await self.db.execute("PRAGMA foreign_keys=ON;")
-            await self.db.execute("PRAGMA busy_timeout=5000;")
-        return self
+#     async def conn(self):
+#         if not self.db.is_connected:
+#             await self.db.connect()
+#             await self.db.execute("PRAGMA journal_mode=WAL;")
+#             await self.db.execute("PRAGMA synchronous=NORMAL;")
+#             await self.db.execute("PRAGMA cache_size=10000;")
+#             await self.db.execute("PRAGMA foreign_keys=ON;")
+#             await self.db.execute("PRAGMA busy_timeout=5000;")
+#         return self
 
-    async def count(self) -> int:
-        """
-        Returns the number of records in the view.
-        """
-        conn = await self.conn()
-        query = f"SELECT COUNT(*) as num_records FROM `{self.name}`;"
-        count = await conn.db.fetch_one(query)
-        return count["num_records"]
+#     async def count(self) -> int:
+#         """
+#         Returns the number of records in the view.
+#         """
+#         conn = await self.conn()
+#         query = f"SELECT COUNT(*) as num_records FROM `{self.name}`;"
+#         count = await conn.db.fetch_one(query)
+#         return count["num_records"]
 
-    async def list(self, limit: int = 10, offset: int = 0):
-        """
-        Lists all records in the view.
-        """
-        conn = await self.conn()
-        query = f"SELECT * FROM `{self.name}` LIMIT :limit OFFSET :offset;"
-        values = {"limit": limit, "offset": offset}
-        records = await conn.db.fetch_all(query, values)
-        return [record for record in records]
+#     async def list(self, limit: int = 10, offset: int = 0):
+#         """
+#         Lists all records in the view.
+#         """
+#         conn = await self.conn()
+#         query = f"SELECT * FROM `{self.name}` LIMIT :limit OFFSET :offset;"
+#         values = {"limit": limit, "offset": offset}
+#         records = await conn.db.fetch_all(query, values)
+#         return [record for record in records]
 
-    async def find(self, query: dict, limit: int = 10):
-        """
-        Finds records in the view that match the query.
-        """
-        conn = await self.conn()
-        query_str = parse_query(query)
-        sql_query = f"SELECT * FROM `{self.name}` WHERE {query_str} LIMIT {limit};"
-        records = await conn.db.fetch_all(sql_query)
-        return [record for record in records]
+#     async def find(self, query: dict, limit: int = 10):
+#         """
+#         Finds records in the view that match the query.
+#         """
+#         conn = await self.conn()
+#         query_str = parse_query(query)
+#         sql_query = f"SELECT * FROM `{self.name}` WHERE {query_str} LIMIT {limit};"
+#         records = await conn.db.fetch_all(sql_query)
+#         return [record for record in records]
 
-    async def delete(self):
-        """
-        Removes the view from the store.
-        """
-        conn = await self.conn()
-        await conn.db.execute(f"DROP VIEW IF EXISTS `{self.name}`;")
+#     async def delete(self):
+#         """
+#         Removes the view from the store.
+#         """
+#         conn = await self.conn()
+#         await conn.db.execute(f"DROP VIEW IF EXISTS `{self.name}`;")
 
-    async def rename(self, new_name: str):
-        """
-        Renames the view.
-        """
-        conn = await self.conn()
-        # Fetch the current definition of the view
-        view_definition = await conn.db.fetch_one(
-            f"SELECT sql FROM sqlite_master WHERE type='view' AND name='{self.name}';"
-        )
-        if not view_definition:
-            raise RuntimeError(f"View '{self.name}' does not exist.")
+#     async def rename(self, new_name: str):
+#         """
+#         Renames the view.
+#         """
+#         conn = await self.conn()
+#         # Fetch the current definition of the view
+#         view_definition = await conn.db.fetch_one(
+#             f"SELECT sql FROM sqlite_master WHERE type='view' AND name='{self.name}';"
+#         )
+#         if not view_definition:
+#             raise RuntimeError(f"View '{self.name}' does not exist.")
 
-        # Extract the view creation SQL
-        create_view_sql = view_definition["sql"]
-        # Remove the old view first
-        await conn.db.execute(f"DROP VIEW `{self.name}`;")
+#         # Extract the view creation SQL
+#         create_view_sql = view_definition["sql"]
+#         # Remove the old view first
+#         await conn.db.execute(f"DROP VIEW `{self.name}`;")
 
-        # Modify the view definition to use the new name and create the new view
-        create_view_sql = create_view_sql.replace(
-            f"CREATE VIEW `{self.name}`", f"CREATE VIEW `{new_name}`"
-        )
-        await conn.db.execute(create_view_sql)
+#         # Modify the view definition to use the new name and create the new view
+#         create_view_sql = create_view_sql.replace(
+#             f"CREATE VIEW `{self.name}`", f"CREATE VIEW `{new_name}`"
+#         )
+#         await conn.db.execute(create_view_sql)
 
-        # Update the instance's name attribute
-        self.name = new_name
+#         # Update the instance's name attribute
+#         self.name = new_name
 
-    async def update(self, query: dict):
-        """
-        Updates the view with a new query.
-        """
-        conn = await self.conn()
-        query_str = parse_query(query)
-        await conn.db.execute(
-            f"CREATE VIEW `{self.name}` AS SELECT * FROM `{self.name}` WHERE {query_str};"
-        )
+#     async def update(self, query: dict):
+#         """
+#         Updates the view with a new query.
+#         """
+#         conn = await self.conn()
+#         query_str = parse_query(query)
+#         await conn.db.execute(
+#             f"CREATE VIEW `{self.name}` AS SELECT * FROM `{self.name}` WHERE {query_str};"
+#         )
 
 
 class Store:
@@ -542,64 +542,64 @@ class Store:
             )
         return Collection(name=collection_name, db=self.name)
 
-    async def create_view(
-        self,
-        view_name: str,
-        collection_name: str,
-        fields: typing.List[str],
-        query: typing.Optional[dict] = None,
-    ) -> View:
-        """
-        Creates a view within the apagea store with the specified fields and conditions.
-        """
-        conn = await self.conn()
+    # async def create_view(
+    #     self,
+    #     view_name: str,
+    #     collection_name: str,
+    #     fields: typing.List[str],
+    #     query: typing.Optional[dict] = None,
+    # ) -> View:
+    #     """
+    #     Creates a view within the apagea store with the specified fields and conditions.
+    #     """
+    #     conn = await self.conn()
 
-        # Constructing the SELECT statement with JSON extraction
-        select_fields = ", ".join(
-            [f"json_extract(data, '$.{field}') AS {field}" for field in fields]
-        )
-        view_query = f"""
-        CREATE VIEW IF NOT EXISTS {view_name} AS
-        SELECT pk, {select_fields}
-        FROM `{COLLECTION_PREFIX}{collection_name}`
-        """
-        if query is not None:
-            condition_str = parse_query(query)
-            view_query += f" WHERE {condition_str};"
+    #     # Constructing the SELECT statement with JSON extraction
+    #     select_fields = ", ".join(
+    #         [f"json_extract(data, '$.{field}') AS {field}" for field in fields]
+    #     )
+    #     view_query = f"""
+    #     CREATE VIEW IF NOT EXISTS {view_name} AS
+    #     SELECT pk, {select_fields}
+    #     FROM `{COLLECTION_PREFIX}{collection_name}`
+    #     """
+    #     if query is not None:
+    #         condition_str = parse_query(query)
+    #         view_query += f" WHERE {condition_str};"
 
-        try:
-            await conn.db.execute(view_query)
-        except Exception as e:
-            raise RuntimeError(f"Failed to create view '{view_name}': {e}")
+    #     try:
+    #         await conn.db.execute(view_query)
+    #     except Exception as e:
+    #         raise RuntimeError(f"Failed to create view '{view_name}': {e}")
 
-    async def delete_view(self, view_name: str):
-        """
-        removes a view from the apagea store
-        """
-        conn = await self.conn()
-        await conn.db.execute(f"DROP VIEW IF EXISTS {view_name};")
+    # async def delete_view(self, view_name: str):
+    #     """
+    #     removes a view from the apagea store
+    #     """
+    #     conn = await self.conn()
+    #     await conn.db.execute(f"DROP VIEW IF EXISTS {view_name};")
 
-    async def list_views(self) -> typing.List[View]:
-        """
-        lists all views in the apagea store
-        """
-        conn = await self.conn()
-        views = await conn.db.fetch_all(
-            "SELECT name FROM sqlite_master WHERE type='view';"
-        )
-        return [View(name=view["name"]) for view in views]
+    # async def list_views(self) -> typing.List[View]:
+    #     """
+    #     lists all views in the apagea store
+    #     """
+    #     conn = await self.conn()
+    #     views = await conn.db.fetch_all(
+    #         "SELECT name FROM sqlite_master WHERE type='view';"
+    #     )
+    #     return [View(name=view["name"]) for view in views]
 
-    async def get_view(self, view_name: str) -> View:
-        """
-        retrieves a view by name
-        """
-        conn = await self.conn()
-        view = await conn.db.fetch_one(
-            f"SELECT name FROM sqlite_master WHERE type='view' AND name='{view_name}';"
-        )
-        if view is None:
-            raise ViewNotFound(f"view with name {view_name} not found")
-        return View(name=view["name"], db=self.name)
+    # async def get_view(self, view_name: str) -> View:
+    #     """
+    #     retrieves a view by name
+    #     """
+    #     conn = await self.conn()
+    #     view = await conn.db.fetch_one(
+    #         f"SELECT name FROM sqlite_master WHERE type='view' AND name='{view_name}';"
+    #     )
+    #     if view is None:
+    #         raise ViewNotFound(f"view with name {view_name} not found")
+    #     return View(name=view["name"], db=self.name)
 
     async def destroy(self):
         """destroys the store, and all data within it"""
