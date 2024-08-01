@@ -7,6 +7,9 @@ from documentdb import (
     Store,
     InvalidOperator,
     RecordNotFound,
+    CollectionNotFound,
+    InvalidCollectionName,
+    CollectionAlreadyExists,
 )
 from unittest.mock import AsyncMock, patch
 
@@ -12025,6 +12028,35 @@ async def test_create_store():
 
 
 @pytest.mark.asyncio
+async def test_create_collection_invalid_name():
+    store = Store("example")
+    try:
+        await store.create_collection("a")  # Too short
+    except InvalidCollectionName:
+        pass
+
+    try:
+        await store.create_collection("a" * 17)  # Too long
+    except InvalidCollectionName:
+        pass
+
+    try:
+        await store.create_collection("invalid name")  # Too long
+    except InvalidCollectionName:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_create_collection_already_exist():
+    store = Store("example")
+
+    # Mock the __list_tables_in_db method to return a list that includes the collection name
+    with patch.object(store, "_Store__list_tables_in_db", return_value=["animals"]):
+        with pytest.raises(CollectionAlreadyExists):
+            await store.create_collection("animals")
+
+
+@pytest.mark.asyncio
 async def test_create_collection():
     s = Store("example")
     c = await s.create_collection("animals")
@@ -12570,3 +12602,62 @@ async def test_list_runtime_error():
                 await collection.find({"key": {"eq": "value"}}, include_pk=True)
     finally:
         await s.destroy()
+
+
+@pytest.mark.asyncio
+async def test_delete_collection():
+    s = Store("example")
+    await s.create_collection("animals")
+
+    # delete the collection
+    await s.delete_collection("animals")
+    assert not await s.collection_exists("animals")
+
+    await s.destroy()
+
+
+@pytest.mark.asyncio
+async def test_list_collection():
+    s = Store("example")
+    await s.create_collection("animals")
+
+    collections = await s.list_collections()
+    assert "animals" in [c.name for c in collections]
+    await s.destroy()
+
+
+@pytest.mark.asyncio
+async def test_rename_collection():
+    s = Store("example")
+    await s.create_collection("animals")
+    await s.rename_collection("animals", "zoo")
+
+    collections = await s.list_collections()
+    assert "zoo" in [c.name for c in collections]
+
+    await s.destroy()
+
+
+@pytest.mark.asyncio
+async def test_get_collection():
+    s = Store("example")
+    await s.create_collection("animals")
+    c = await s.get_collection("animals")
+    assert c.name == "animals"
+    await s.destroy()
+
+
+@pytest.mark.asyncio
+async def test_get_auto_create_collection():
+    s = Store("example")
+    c = await s.get_collection("animals", auto_create=True)
+    assert c.name == "animals"
+    await s.destroy()
+
+
+@pytest.mark.asyncio
+async def test_get_collection_not_found():
+    s = Store("example")
+    with pytest.raises(CollectionNotFound):
+        await s.get_collection("animals")
+    await s.destroy()

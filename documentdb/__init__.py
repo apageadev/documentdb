@@ -462,16 +462,21 @@ class Store:
         )
         return [table["name"] for table in tables]
 
+    async def collection_exists(self, collection_name: str) -> bool:
+        """
+        checks if the store exists
+        """
+        _tables = await self.__list_tables_in_db()
+        return f"{COLLECTION_PREFIX}{collection_name}" in _tables
+
     async def create_collection(self, collection_name: str) -> Collection:
         """
         creates a collection to store data within the apagea store
         """
-        conn = await self.conn()
 
         # ensure the collection name is between 2 and 16 characters
-        assert (
-            len(collection_name) < 16 and len(collection_name) > 2
-        ), "collection name must be between 2 and 16 characters"
+        if len(collection_name) < 16 and len(collection_name) > 2:
+            InvalidCollectionName("collection name must be between 2 and 16 characters")
 
         # must be alphanumeric with no spaces. Underscores and hyphens are allowed.
         pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -479,6 +484,8 @@ class Store:
             raise InvalidCollectionName(
                 f"collection name must be alphanumeric with no spaces. Underscores and hyphens are allowed."
             )
+
+        conn = await self.conn()
 
         # check if the collection already exists
         _tables = await self.__list_tables_in_db()
@@ -512,11 +519,12 @@ class Store:
         lists all collections in the apagea store
         """
         _tables = await self.__list_tables_in_db()
-        return [
-            Collection(name=table.replace(COLLECTION_PREFIX, ""))
+        collections = [
+            table.replace(COLLECTION_PREFIX, "")
             for table in _tables
-            if table.sw(COLLECTION_PREFIX)
+            if COLLECTION_PREFIX in table
         ]
+        return [Collection(name=collection, db=self.name) for collection in collections]
 
     async def rename_collection(self, old_name: str, new_name: str):
         """
