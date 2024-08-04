@@ -177,6 +177,7 @@ async def get_db(name: str) -> Database:
     await db.execute("PRAGMA cache_size=10000;")
     await db.execute("PRAGMA foreign_keys=ON;")
     await db.execute("PRAGMA busy_timeout=5000;")
+    await db.execute("PRAGMA legacy_alter_table=ON;")
     return db
 
 
@@ -218,14 +219,52 @@ class View:
         """
         Drops the view from the database.
         """
-        drop_view_query = f"DROP VIEW IF EXISTS `{self.name}`;"
+        drop_view_query = f"DROP VIEW {self.name};"
         await self.db.execute(drop_view_query)
 
     async def rename(self, new_name: str):
         """
-        Renames the view.
+        Renames a view in the apagea store.
+
+        Args:
+            old_name (str): The current name of the view.
+            new_name (str): The new name for the view.
+
+        Raises:
+            ValueError: If the old name or new name is invalid.
+            Exception: If renaming the view fails.
         """
-        await self.db.execute(f"ALTER VIEW `{self.name}` RENAME TO `{new_name}`;")
+        try:
+            # Retrieve the view definition
+            query = (
+                "SELECT sql FROM sqlite_master WHERE type='view' AND name=:old_name;"
+            )
+            result = await self.db.fetch_one(query, values={"old_name": self.name})
+
+            if result is None:
+                raise Exception(f"View `{self.name}` does not exist.")
+
+            view_definition = result["sql"]
+
+            # Modify the view definition with the new name
+            new_view_definition = view_definition.replace(
+                f"CREATE VIEW `{self.name}`", f"CREATE VIEW `{new_name}`"
+            )
+
+            # Execute the operations within a transaction
+            async with self.db.transaction():
+                # Drop the old view
+                drop_query = f"DROP VIEW `{self.name}`;"
+                await self.db.execute(drop_query)
+
+                # Create the new view with the modified definition
+                await self.db.execute(new_view_definition)
+                self.name = new_name
+
+        except Exception as e:
+            raise Exception(
+                f"Failed to rename view from `{self.name}` to `{new_name}`: {str(e)}"
+            )
 
     async def find(
         self, fields: typing.List[str], query: dict, limit: int = 10, offset: int = 0
@@ -239,8 +278,7 @@ class View:
         sql_query = f"SELECT {select_clause} FROM `{self.name}` WHERE {condition} LIMIT :limit OFFSET :offset;"
         params["limit"] = limit
         params["offset"] = offset
-        records = await self.db.fetch_all(sql_query, params)
-        return [record for record in records]
+        return await self.db.fetch_all(sql_query, params)
 
 
 class Collection:
@@ -586,25 +624,12 @@ class DocumentDB:
         except Exception as e:
             raise RuntimeError(f"Failed to create view: {e}")
 
-    async def alter_view(
-        self, view_name: str, fields: typing.List[str], query: dict
-    ) -> View:
-        """
-        update an existing view with new fields and query
-        """
-        # TODO: perform test to see if this is less performant than an actual ALTER VIEW statement
-        # and we'll want to test it with varying amounts of data within the DocumentDB / Collection / View
-        view = await self.get_view(view_name)
-        # delete the existing view and create a new one with the same name and new fields
-        await view.drop()
-        return await self.create_view(view_name, fields, query)
-
     async def view_exists(self, view_name: str) -> bool:
         """
         checks if the store exists
         """
-        _tables = await self.__list_tables_in_db()
-        return view_name in _tables
+        _views = await self.__list_views_in_db()
+        return view_name in _views
 
     async def get_view(self, view_name: str) -> View:
         """
@@ -615,18 +640,6 @@ class DocumentDB:
             raise ViewNotFound(f"view with name {view_name} not found")
         return await View.init(name=view_name, db_name=self.name)
 
-    async def rename_view(self, old_name: str, new_name: str):
-        """
-        renames a view in the apagea store
-        """
-        await self.db.execute(f"ALTER VIEW `{old_name}` RENAME TO `{new_name}`;")
-
-    async def drop_view(self, view_name: str):
-        """
-        removes a view from the apagea store
-        """
-        drop_view_query = f"DROP VIEW IF EXISTS `{view_name}`;"
-        await self.db.execute(drop_view_query)
 
     async def list_views(self) -> typing.List[View]:
         """
