@@ -12751,7 +12751,7 @@ async def test_view():
     nv = await db.get_view("new_view_name")
     nc = await nv.count()
     assert nc == 145
-    
+
     await v.drop()
     assert not await db.view_exists("new_view_name")
 

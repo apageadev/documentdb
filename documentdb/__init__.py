@@ -640,7 +640,6 @@ class DocumentDB:
             raise ViewNotFound(f"view with name {view_name} not found")
         return await View.init(name=view_name, db_name=self.name)
 
-
     async def list_views(self) -> typing.List[View]:
         """
         lists all views in the apagea store
