@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "documentdb"
-version = "0.0.3"
+version = "0.0.4"
 description = ""
 authors = ["Dan Sikes <dan@apagea.com>"]
 readme = "README.md"
