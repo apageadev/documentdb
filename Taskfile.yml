@@ -2,6 +2,10 @@ version: "3"
 
 tasks:
 
+  fmt:
+    cmds:
+      - poetry run black documentdb tests
+
   test:
     cmds:
       - poetry run pytest -sv --cov=documentdb tests/ --cov-report=term
@@ -9,3 +13,7 @@ tasks:
   test-coverage:
     cmds:
       - poetry run pytest --cov=documentdb tests/ --cov-report=html
+  
+  open-cover:
+    cmds:
+      - open htmlcov/index.html

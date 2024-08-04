@@ -7,3 +7,5 @@ venv/
 dist/
 .coverage
 coverage.xml
+hack.py
+hack.db*

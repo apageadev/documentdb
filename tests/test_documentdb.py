@@ -2,9 +2,10 @@ import typing
 import pytest
 from pathlib import Path
 from documentdb import (
+    View,
     build_condition,
     parse_query,
-    Store,
+    DocumentDB,
     InvalidOperator,
     RecordNotFound,
     CollectionNotFound,
@@ -12019,81 +12020,87 @@ ZOO_DATA_SET = [
 
 
 @pytest.mark.asyncio
-async def test_create_store():
-    s = Store("example")
-    await s.conn()
-    assert s.name == "example"
+async def test_create_documentDB():
+    db = DocumentDB("example")
+    await db.conn()
+    assert db.name == "example"
     assert Path("example.db").exists()
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_create_collection_invalid_name():
-    store = Store("example")
+    db = DocumentDB("example")
+    await db.conn()
     try:
-        await store.create_collection("a")  # Too short
+        await db.create_collection("a")  # Too short
     except InvalidCollectionName:
         pass
 
     try:
-        await store.create_collection("a" * 17)  # Too long
+        await db.create_collection("a" * 17)  # Too long
     except InvalidCollectionName:
         pass
 
     try:
-        await store.create_collection("invalid name")  # Too long
+        await db.create_collection("invalid name")  # Too long
     except InvalidCollectionName:
         pass
 
 
 @pytest.mark.asyncio
 async def test_create_collection_already_exist():
-    store = Store("example")
+    db = DocumentDB("example")
+    await db.conn()
 
     # Mock the __list_tables_in_db method to return a list that includes the collection name
-    with patch.object(store, "_Store__list_tables_in_db", return_value=["animals"]):
+    with patch.object(db, "_DocumentDB__list_tables_in_db", return_value=["animals"]):
         with pytest.raises(CollectionAlreadyExists):
-            await store.create_collection("animals")
+            await db.create_collection("animals")
 
 
 @pytest.mark.asyncio
 async def test_create_collection():
-    s = Store("example")
-    c = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    c = await db.create_collection("animals")
     assert c.name == "animals"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_insert_into_collection():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     await animals.insert(
         "blueberry", {"name": "Blueberry", "breed": "Malteese", "age": 4}
     )
     await animals.insert("luna", {"name": "Luna", "breed": "Corgi", "age": 2})
     assert await animals.count() == 2
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_insert_many_into_collection():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
         records.append([f"dog-{i}", {"name": f"dog-{i}", "legs": 4}])
     await animals.insert_many(records)
     assert await animals.count() == 1000
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_get_single_record():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     await animals.insert(
         "blueberry", {"name": "Blueberry", "breed": "Malteese", "age": 4}
@@ -12104,13 +12111,14 @@ async def test_get_single_record():
     assert record["name"] == "Luna"
     assert record["breed"] == "Corgi"
     assert record["age"] == 2
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_get_many_records():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12126,13 +12134,14 @@ async def test_get_many_records():
     assert records[2]["name"] == "dog-234"
     assert records[3]["name"] == "dog-345"
     assert records[4]["name"] == "dog-999"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_update_record():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     await animals.insert(
         "blueberry", {"name": "Blueberry", "breed": "Malteese", "age": 4}
@@ -12141,13 +12150,14 @@ async def test_update_record():
     await animals.update("blueberry", {"age": 5})
     record = await animals.get("blueberry")
     assert record["age"] == 5
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_update_many():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12162,13 +12172,14 @@ async def test_update_many():
     assert d0["size"] == "small"
     d999 = await animals.get("dog-999")
     assert d999["size"] == "small"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_delete_record():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     await animals.insert(
         "blueberry", {"name": "Blueberry", "breed": "Malteese", "age": 4}
@@ -12176,13 +12187,14 @@ async def test_delete_record():
 
     await animals.delete("blueberry")
     assert await animals.count() == 0
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_delete_many_records():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12191,13 +12203,14 @@ async def test_delete_many_records():
 
     await animals.delete_many(["dog-0", "dog-1", "dog-2"])
     assert await animals.count() == 997
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_list_records():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12210,13 +12223,14 @@ async def test_list_records():
     results = await animals.list(offset=10, limit=20, include_pk=True)
     assert len(results) == 20
 
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_pagination_of_records():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12233,7 +12247,7 @@ async def test_pagination_of_records():
     assert records[0]["name"] == "dog-10"
     assert records[19]["name"] == "dog-29"
 
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
@@ -12327,8 +12341,9 @@ async def test_find_records():
     #     ]
     # }
 
-    s = Store("example")
-    zoo = await s.create_collection("zoo")
+    db = DocumentDB("example")
+    await db.conn()
+    zoo = await db.create_collection("zoo")
     await zoo.insert_many(prepare_dataset())
 
     # find all gorillas in the zoo
@@ -12397,14 +12412,15 @@ async def test_find_records():
     }
     records = await zoo.find(query, limit=1000, include_pk=True)
     assert len(records) == number_of_bears_in_rainforest_or_wetland()
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_catch_unsupported_operator():
 
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12425,7 +12441,7 @@ async def test_catch_unsupported_operator():
     with pytest.raises(InvalidOperator):
         await animals.find(query, limit=1000)
 
-    await s.destroy()
+    await db.destroy()
 
 
 def test_build_condition_else():
@@ -12454,8 +12470,9 @@ def test_parse_query_or():
 
 @pytest.mark.asyncio
 async def test_upsert():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12465,13 +12482,14 @@ async def test_upsert():
     await animals.upsert("dog-0", {"size": "small"})
     d0 = await animals.get("dog-0")
     assert d0["size"] == "small"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_upsert_many():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12486,13 +12504,14 @@ async def test_upsert_many():
     assert d0["size"] == "small"
     d999 = await animals.get("dog-999")
     assert d999["size"] == "small"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_record_not_found():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12501,13 +12520,14 @@ async def test_record_not_found():
 
     with pytest.raises(RecordNotFound):
         await animals.get("dog-1000")
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_get_record_with_pk():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    animals = await db.create_collection("animals")
 
     records = []
     for i in range(1000):
@@ -12526,138 +12546,213 @@ async def test_get_record_with_pk():
     assert records["dog-345"] == {"name": "dog-345", "legs": 4}
     assert records["dog-999"] == {"name": "dog-999", "legs": 4}
 
-    await s.destroy()
+    await db.destroy()
 
 
-@pytest.mark.asyncio
-async def test_raise_runtime_exception():
-    s = Store("example")
-    animals = await s.create_collection("animals")
+# @pytest.mark.asyncio
+# async def test_raise_runtime_exception():
+#     db = DocumentDB("example")
+#     animals = await db.create_collection("animals")
 
-    mock_conn = AsyncMock()
-    mock_conn.db.fetch_all.side_effect = Exception("Database error")
+#     mock_conn = AsyncMock()
+#     mock_conn.db.fetch_all.side_effect = Exception("Database error")
 
-    with patch.object(animals, "conn", return_value=mock_conn):
-        with pytest.raises(
-            RuntimeError, match="Failed to fetch records: Database error"
-        ):
-            # Call the get_many method with some test primary keys
-            await animals.get_many(["pk1", "pk2"])
-    await s.destroy()
-
-
-@pytest.mark.asyncio
-async def test_update_runtime_error():
-    # Create an instance of MyCollection
-    s = Store("example")
-    collection = await s.create_collection("animals")
-
-    # Mock the connection and its db.execute method to raise an exception
-    mock_conn = AsyncMock()
-    mock_conn.db.execute.side_effect = Exception("Database error")
-
-    # Mock the conn method to return the mocked connection
-    with patch.object(collection, "conn", return_value=mock_conn):
-        with pytest.raises(
-            RuntimeError, match="Failed to update record: Database error"
-        ):
-            # Call the update method with test primary key and data
-            await collection.update("pk1", {"key": "value"})
-    await s.destroy()
+#     with patch.object(animals, "conn", return_value=mock_conn):
+#         with pytest.raises(
+#             RuntimeError, match="Failed to fetch records: Database error"
+#         ):
+#             # Call the get_many method with some test primary keys
+#             await animals.get_many(["pk1", "pk2"])
+#     await db.destroy()
 
 
-@pytest.mark.asyncio
-async def test_delete_runtime_error():
-    s = Store("example")
-    collection = await s.create_collection("animals")
+# @pytest.mark.asyncio
+# async def test_update_runtime_error():
+#     # Create an instance of MyCollection
+#     db = DocumentDB("example")
+#     collection = await db.create_collection("animals")
 
-    # Mock the connection and its db.execute method to raise an exception
-    mock_conn = AsyncMock()
-    mock_conn.db.execute.side_effect = Exception("Database error")
+#     # Mock the connection and its db.execute method to raise an exception
+#     mock_conn = AsyncMock()
+#     mock_conn.db.execute.side_effect = Exception("Database error")
 
-    # Mock the conn method to return the mocked connection
-    with patch.object(collection, "conn", return_value=mock_conn):
-        with pytest.raises(
-            RuntimeError, match="Failed to delete records: Database error"
-        ):
-            await collection.delete_many(["pk1", "pk2"])
-    await s.destroy()
+#     # Mock the conn method to return the mocked connection
+#     with patch.object(collection, "conn", return_value=mock_conn):
+#         with pytest.raises(
+#             RuntimeError, match="Failed to update record: Database error"
+#         ):
+#             # Call the update method with test primary key and data
+#             await collection.update("pk1", {"key": "value"})
+#     await db.destroy()
 
 
-@pytest.mark.asyncio
-async def test_list_runtime_error():
-    s = Store("example")
-    try:
-        collection = await s.create_collection("animals")
+# @pytest.mark.asyncio
+# async def test_delete_runtime_error():
+#     db = DocumentDB("example")
+#     collection = await db.create_collection("animals")
 
-        # Mock the connection and its db.fetch_all method to raise an exception
-        mock_conn = AsyncMock()
-        mock_conn.db.fetch_all.side_effect = Exception("Database error")
+#     # Mock the connection and its db.execute method to raise an exception
+#     mock_conn = AsyncMock()
+#     mock_conn.db.execute.side_effect = Exception("Database error")
 
-        # Mock the conn method to return the mocked connection
-        with patch.object(collection, "conn", return_value=mock_conn):
-            with pytest.raises(
-                RuntimeError, match="Failed to find records: Database error"
-            ):
-                await collection.find({"key": {"eq": "value"}}, include_pk=True)
-    finally:
-        await s.destroy()
+#     # Mock the conn method to return the mocked connection
+#     with patch.object(collection, "conn", return_value=mock_conn):
+#         with pytest.raises(
+#             RuntimeError, match="Failed to delete records: Database error"
+#         ):
+#             await collection.delete_many(["pk1", "pk2"])
+#     await db.destroy()
+
+
+# @pytest.mark.asyncio
+# async def test_list_runtime_error():
+#     db = DocumentDB("example")
+#     try:
+#         collection = await db.create_collection("animals")
+
+#         # Mock the connection and its db.fetch_all method to raise an exception
+#         mock_conn = AsyncMock()
+#         mock_conn.db.fetch_all.side_effect = Exception("Database error")
+
+#         # Mock the conn method to return the mocked connection
+#         with patch.object(collection, "conn", return_value=mock_conn):
+#             with pytest.raises(
+#                 RuntimeError, match="Failed to find records: Database error"
+#             ):
+#                 await collection.find({"key": {"eq": "value"}}, include_pk=True)
+#     finally:
+#         await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_delete_collection():
-    s = Store("example")
-    await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    await db.create_collection("animals")
 
     # delete the collection
-    await s.delete_collection("animals")
-    assert not await s.collection_exists("animals")
+    await db.delete_collection("animals")
+    assert not await db.collection_exists("animals")
 
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_list_collection():
-    s = Store("example")
-    await s.create_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    await db.create_collection("animals")
 
-    collections = await s.list_collections()
+    collections = await db.list_collections()
     assert "animals" in [c.name for c in collections]
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_rename_collection():
-    s = Store("example")
-    await s.create_collection("animals")
-    await s.rename_collection("animals", "zoo")
+    db = DocumentDB("example")
+    await db.conn()
+    await db.create_collection("animals")
+    await db.rename_collection("animals", "zoo")
 
-    collections = await s.list_collections()
+    collections = await db.list_collections()
     assert "zoo" in [c.name for c in collections]
 
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_get_collection():
-    s = Store("example")
-    await s.create_collection("animals")
-    c = await s.get_collection("animals")
+    db = DocumentDB("example")
+    await db.conn()
+    await db.create_collection("animals")
+    c = await db.get_collection("animals")
     assert c.name == "animals"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_get_auto_create_collection():
-    s = Store("example")
-    c = await s.get_collection("animals", auto_create=True)
+    db = DocumentDB("example")
+    await db.conn()
+    c = await db.get_collection("animals", auto_create=True)
     assert c.name == "animals"
-    await s.destroy()
+    await db.destroy()
 
 
 @pytest.mark.asyncio
 async def test_get_collection_not_found():
-    s = Store("example")
+    db = DocumentDB("example")
+    await db.conn()
     with pytest.raises(CollectionNotFound):
-        await s.get_collection("animals")
-    await s.destroy()
+        await db.get_collection("animals")
+    await db.destroy()
+
+
+@pytest.mark.asyncio
+async def test_view():
+
+    def prepare_dataset() -> typing.List[typing.Tuple[str, dict]]:
+        """
+        will generate an idempotent primary key for the animal
+        """
+        dataset = []
+        for idx, animal in enumerate(ZOO_DATA_SET):
+            pk = f"{animal['species'].lower()}-{animal['animal_name'].lower()}-{idx}"
+            dataset.append((pk, animal))
+        return dataset
+
+    db = DocumentDB("example")
+    await db.conn()
+    zoo = await db.create_collection("zoo")
+    await zoo.insert_many(prepare_dataset())
+    query = {"conservation_status": {"eq": "Endangered"}}
+    v = await db.create_view(
+        view_name="endangered_animals",
+        fields=[
+            "zoo.animal_name",
+            "zoo.species",
+            "zoo.habitat",
+            "zoo.conservation_status",
+        ],
+        query=query,
+    )
+    assert v is not None
+    assert type(v) == View
+
+    # get a list of views
+    views = await db.list_views()
+    assert "endangered_animals" in [v.name for v in views]
+
+    # rename the view
+    # await db.rename_view("endangered_animals", "endangered_species")
+
+    # get a list of views
+    # views = await db.list_views()
+    # assert "endangered_species" in [v.name for v in views]
+
+    # count the number of endangered species
+    count = await v.count()
+    assert count == 145
+
+    # list the first 10 endangered species
+    records = await v.list()
+    assert len(records) == 10
+
+    # find endangered species whos name starts with the letter "A"
+    records = await v.find(
+        ["zoo.animal_name"], {"zoo.animal_name": {"sw": "A"}}, limit=10, offset=0
+    )
+    assert len(records) == 10
+    await v.rename("new_view_name")
+
+    assert await db.view_exists("new_view_name")
+
+    nv = await db.get_view("new_view_name")
+    nc = await nv.count()
+    assert nc == 145
+
+    await v.drop()
+    assert not await db.view_exists("new_view_name")
+
+    await db.destroy()
