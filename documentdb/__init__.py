@@ -267,15 +267,23 @@ class View:
             )
 
     async def find(
-        self, fields: typing.List[str], query: dict, limit: int = 10, offset: int = 0
+        self,
+        fields: typing.List[str],
+        query: dict = None,
+        limit: int = 10,
+        offset: int = 0,
     ) -> typing.List[dict]:
         """
         Finds records in the view that match the query.
         """
-        condition, params = parse_query(query, use_json_extract=False)
         field_expressions = [f"`{field.replace('.', '_')}`" for field in fields]
         select_clause = ", ".join(field_expressions)
-        sql_query = f"SELECT {select_clause} FROM `{self.name}` WHERE {condition} LIMIT :limit OFFSET :offset;"
+        sql_query = (
+            f"SELECT {select_clause} FROM `{self.name}` LIMIT :limit OFFSET :offset;"
+        )
+        if query is not None:
+            condition, params = parse_query(query, use_json_extract=False)
+            sql_query = f"SELECT {select_clause} FROM `{self.name}` WHERE {condition} LIMIT :limit OFFSET :offset;"
         params["limit"] = limit
         params["offset"] = offset
         return await self.db.fetch_all(sql_query, params)
@@ -435,14 +443,21 @@ class Collection:
         return [{record["pk"]: loads(record["data"])} for record in records]
 
     async def find(
-        self, query: dict, limit: int = 10, include_pk: bool = False
+        self,
+        query: dict = None,
+        limit: int = 10,
+        offset: int = 0,
+        include_pk: bool = False,
     ) -> typing.List[dict]:
         """
         Finds records in the collection that match the query.
         """
-        condition, params = parse_query(query)
-        sql_query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE {condition} LIMIT :limit;"
+        sql_query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` LIMIT :limit OFFSET :offset;"
+        if query is not None:
+            condition, params = parse_query(query)
+            sql_query = f"SELECT * FROM `{COLLECTION_PREFIX}{self.name}` WHERE {condition} LIMIT :limit OFFSET :offset;"
         params["limit"] = limit
+        params["offset"] = offset
         try:
             records = await self.db.fetch_all(query=sql_query, values=params)
             if not include_pk:
@@ -574,7 +589,7 @@ class DocumentDB:
         Path(f"{self.name}.db").unlink()
 
     async def create_view(
-        self, view_name: str, fields: typing.List[str], query: dict
+        self, view_name: str, fields: typing.List[str], query: dict = None
     ) -> View:
         # Validate view name
         if not re.match(r"^[a-zA-Z0-9_-]+$", view_name):
@@ -602,21 +617,22 @@ class DocumentDB:
         # Construct the FROM clause
         from_clause = f"`{COLLECTION_PREFIX}{collection}`"
 
-        # Construct the WHERE clause
-        condition, params = parse_query(query)
-        for param, value in params.items():
-            if isinstance(value, str):
-                value = f"'{value}'"
-            condition = condition.replace(f":{param}", str(value))
-        where_clause = f"WHERE {condition}" if condition else ""
-
         # Construct the final SQL query
         create_view_query = f"""
         CREATE VIEW `{view_name}` AS
         SELECT {select_clause}
         FROM {from_clause}
-        {where_clause};
         """
+        # Construct the WHERE clause
+        if query is not None:
+            condition, params = parse_query(query)
+            for param, value in params.items():
+                if isinstance(value, str):
+                    value = f"'{value}'"
+                condition = condition.replace(f":{param}", str(value))
+            where_clause = f"WHERE {condition}" if condition else ""
+            create_view_query += where_clause
+        create_view_query += ";"
         # Execute the SQL statement to create the view
         try:
             await self.db.execute(create_view_query)

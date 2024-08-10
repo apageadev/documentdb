@@ -14,6 +14,8 @@ from documentdb import (
 )
 from unittest.mock import AsyncMock, patch
 
+# TODO: support returning all records in a view if the query param is not passed
+
 # THIS DATASET IS USED FOR TESTING PURPOSES ONLY
 ZOO_DATA_SET = [
     {
@@ -12706,7 +12708,7 @@ async def test_view():
     await db.conn()
     zoo = await db.create_collection("zoo")
     await zoo.insert_many(prepare_dataset())
-    query = {"conservation_status": {"eq": "Endangered"}}
+    query = None
     v = await db.create_view(
         view_name="endangered_animals",
         fields=[
@@ -12733,7 +12735,7 @@ async def test_view():
 
     # count the number of endangered species
     count = await v.count()
-    assert count == 145
+    assert count == 1000
 
     # list the first 10 endangered species
     records = await v.list()
@@ -12750,9 +12752,30 @@ async def test_view():
 
     nv = await db.get_view("new_view_name")
     nc = await nv.count()
-    assert nc == 145
+    assert nc == 1000
 
     await v.drop()
     assert not await db.view_exists("new_view_name")
+
+    # create a new view with a query
+    query = {"conservation_status": {"eq": "Endangered"}}
+    v = await db.create_view(
+        view_name="endangered_animals",
+        fields=[
+            "zoo.animal_name",
+            "zoo.species",
+            "zoo.habitat",
+            "zoo.conservation_status",
+        ],
+        query=query,
+    )
+    assert v is not None
+    assert type(v) == View
+
+    count = await v.count()
+    assert count == 145
+
+    await v.drop()
+    assert not await db.view_exists("endangered_animals")
 
     await db.destroy()
